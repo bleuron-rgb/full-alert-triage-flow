@@ -16,7 +16,7 @@ function routeRequest(req, res) {
   if (!order) return sendJson(res, 404, { error: 'order_not_found' });
 
   const customer = findCustomer(order.customerId);
-  sendJson(res, 200, { orderId: order.id, customerId: customer.id, total: orderTotal(order) });
+  sendJson(res, 200, { orderId: order.id, customerId: customer.id, total: orderTotal(order, customer) });
 }
 
 export function createHandler({ onError = (err) => console.error(err.stack) } = {}) {
