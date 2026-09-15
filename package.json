@@ -5,11 +5,14 @@
   "type": "module",
   "description": "Small order pricing service used to exercise an alert-triage routine end to end.",
   "scripts": {
-    "start": "node src/server.js",
+    "start": "node --env-file-if-exists=.env --import ./src/instrument.js src/server.js",
     "traffic": "node scripts/traffic.js",
     "test": "node --test"
   },
   "engines": {
     "node": ">=20"
+  },
+  "dependencies": {
+    "@sentry/node": "^10.74.0"
   }
 }
