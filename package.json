@@ -1,0 +1,15 @@
+{
+  "name": "orders-api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Small order pricing service used to exercise an alert-triage routine end to end.",
+  "scripts": {
+    "start": "node src/server.js",
+    "traffic": "node scripts/traffic.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
