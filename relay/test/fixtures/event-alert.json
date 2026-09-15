@@ -1,0 +1,364 @@
+{
+  "action": "triggered",
+  "actor": {
+    "id": "sentry",
+    "name": "Sentry",
+    "type": "application"
+  },
+  "data": {
+    "event": {
+      "event_id": "4fb12784202a488fb28191372e938e0b",
+      "project": 4507654321098752,
+      "platform": "node",
+      "level": "error",
+      "title": "TypeError: Cannot read properties of undefined (reading 'tier')",
+      "culprit": "loyaltyDiscount(app:///src/pricing.js)",
+      "datetime": "2026-09-15T17:52:32.426Z",
+      "environment": "production",
+      "release": "19f49b54eeab9bc4a2a9eaa78c18815617f163b8",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:3000/orders/o_1003/total"
+      },
+      "exception": {
+        "values": [
+          {
+            "type": "TypeError",
+            "value": "Cannot read properties of undefined (reading 'tier')",
+            "mechanism": {
+              "type": "generic",
+              "handled": true
+            },
+            "stacktrace": {
+              "frames": [
+                {
+                  "filename": "app:///node_modules/@opentelemetry/api/build/src/api/context.js",
+                  "module": "@opentelemetry.api.build.src.api:context",
+                  "function": "ContextAPI.with",
+                  "lineno": 51,
+                  "colno": 46,
+                  "in_app": false,
+                  "pre_context": [
+                    "     *",
+                    "     * @param context context to be active during function execution",
+                    "     * @param fn function to execute in a context",
+                    "     * @param thisArg optional receiver to be used for calling fn",
+                    "     * @param args optional arguments forwarded to fn",
+                    "     */",
+                    "    with(context, fn, thisArg, ...args) {"
+                  ],
+                  "context_line": "        return this._getContextManager().with(context, fn, thisArg, ...args);",
+                  "post_context": [
+                    "    }",
+                    "    /**",
+                    "     * Bind a context to a target function or event emitter",
+                    "     *",
+                    "     * @param context context to bind to the event emitter or function. Defaults to the currently active context",
+                    "     * @param target function or event emitter to bind",
+                    "     */"
+                  ],
+                  "vars": {
+                    "context": "<BaseContext>",
+                    "thisArg": "<undefined>",
+                    "args": []
+                  }
+                },
+                {
+                  "filename": "app:///node_modules/@sentry/opentelemetry/build/esm/index.js",
+                  "module": "@sentry.opentelemetry.build.esm:index",
+                  "function": "SentryAsyncLocalStorageContextManager.with",
+                  "lineno": 24,
+                  "colno": 36,
+                  "in_app": false,
+                  "pre_context": [
+                    "  }",
+                    "  active() {",
+                    "    return this._asyncLocalStorage.getStore() ?? ROOT_CONTEXT;",
+                    "  }",
+                    "  with(context, fn, thisArg, ...args) {",
+                    "    const ctx2 = buildContextWithSentryScopes(context, this.active());",
+                    "    const cb = thisArg == null ? fn : fn.bind(thisArg);"
+                  ],
+                  "context_line": "    return this._asyncLocalStorage.run(ctx2, cb, ...args);",
+                  "post_context": [
+                    "  }",
+                    "  enable() {",
+                    "    return this;",
+                    "  }",
+                    "  disable() {",
+                    "    this._asyncLocalStorage.disable();",
+                    "    return this;"
+                  ],
+                  "vars": null
+                },
+                {
+                  "filename": "node:internal/async_local_storage/async_context_frame",
+                  "module": "async_context_frame",
+                  "function": "AsyncLocalStorage.run",
+                  "lineno": 63,
+                  "colno": 14,
+                  "in_app": false,
+                  "pre_context": null,
+                  "context_line": null,
+                  "post_context": null,
+                  "vars": null
+                },
+                {
+                  "filename": "app:///node_modules/@sentry/node-core/build/esm/integrations/http/httpServerIntegration.js",
+                  "module": "@sentry.node-core.build.esm.integrations.http:httpServerIntegration",
+                  "function": "?",
+                  "lineno": 51,
+                  "colno": 11,
+                  "in_app": false,
+                  "pre_context": [
+                    "        const callback = request._startSpanCallback?.deref();",
+                    "        if (callback) {",
+                    "          callback(() => {",
+                    "            next();",
+                    "            return true;",
+                    "          });",
+                    "        } else {"
+                  ],
+                  "context_line": "          next();",
+                  "post_context": [
+                    "        }",
+                    "      });",
+                    "    }",
+                    "  };",
+                    "  return {",
+                    "    name: INTEGRATION_NAME,",
+                    "    setupOnce() {"
+                  ],
+                  "vars": null
+                },
+                {
+                  "filename": "app:///node_modules/@sentry/core/build/esm/integrations/http/server-subscription.js",
+                  "module": "@sentry.core.build.esm.integrations.http:server-subscription",
+                  "function": "?",
+                  "lineno": 94,
+                  "colno": 37,
+                  "in_app": false,
+                  "pre_context": [
+                    "                status_code: response.statusCode",
+                    "              });",
+                    "            });",
+                    "            const wrap = options.wrapServerEmitRequest;",
+                    "            let emitResult = false;",
+                    "            if (wrap) {",
+                    "              wrap(request, response, normalizedRequest, () => {"
+                  ],
+                  "context_line": "                emitResult = target.apply(thisArg, args);",
+                  "post_context": [
+                    "              });",
+                    "            } else {",
+                    "              emitResult = target.apply(thisArg, args);",
+                    "            }",
+                    "            return emitResult;",
+                    "          }",
+                    "        );"
+                  ],
+                  "vars": null
+                },
+                {
+                  "filename": "node:events",
+                  "module": "node:events",
+                  "function": "Server.emit",
+                  "lineno": 508,
+                  "colno": 28,
+                  "in_app": false,
+                  "pre_context": null,
+                  "context_line": null,
+                  "post_context": null,
+                  "vars": null
+                },
+                {
+                  "filename": "app:///src/app.js",
+                  "module": "app",
+                  "function": "Server.?",
+                  "lineno": 25,
+                  "colno": 7,
+                  "in_app": true,
+                  "pre_context": [
+                    "  const customer = findCustomer(order.customerId);",
+                    "  sendJson(res, 200, { orderId: order.id, customerId: customer.id, total: orderTotal(order, customer) });",
+                    "}",
+                    "",
+                    "export function createHandler({ onError = (err) => console.error(err.stack) } = {}) {",
+                    "  return (req, res) => {",
+                    "    try {"
+                  ],
+                  "context_line": "      routeRequest(req, res);",
+                  "post_context": [
+                    "    } catch (err) {",
+                    "      onError(err, req);",
+                    "      sendJson(res, 500, { error: 'internal_error' });",
+                    "    }",
+                    "  };",
+                    "}"
+                  ],
+                  "vars": null
+                },
+                {
+                  "filename": "app:///src/app.js",
+                  "module": "app",
+                  "function": "routeRequest",
+                  "lineno": 19,
+                  "colno": 75,
+                  "in_app": true,
+                  "pre_context": [
+                    "  const match = req.method === 'GET' && ORDER_TOTAL_ROUTE.exec(req.url);",
+                    "  if (!match) return sendJson(res, 404, { error: 'not_found' });",
+                    "",
+                    "  const order = findOrder(match[1]);",
+                    "  if (!order) return sendJson(res, 404, { error: 'order_not_found' });",
+                    "",
+                    "  const customer = findCustomer(order.customerId);"
+                  ],
+                  "context_line": "  sendJson(res, 200, { orderId: order.id, customerId: customer.id, total: orderTotal(order, customer) });",
+                  "post_context": [
+                    "}",
+                    "",
+                    "export function createHandler({ onError = (err) => console.error(err.stack) } = {}) {",
+                    "  return (req, res) => {",
+                    "    try {",
+                    "      routeRequest(req, res);",
+                    "    } catch (err) {"
+                  ],
+                  "vars": {
+                    "req": "<IncomingMessage>",
+                    "res": "<ServerResponse>",
+                    "match": [
+                      "/orders/o_1003/total",
+                      "o_1003"
+                    ],
+                    "order": {
+                      "id": "o_1003",
+                      "customerId": "c_102"
+                    },
+                    "customer": {
+                      "id": "c_102",
+                      "name": "Sam Rivera"
+                    }
+                  }
+                },
+                {
+                  "filename": "app:///src/pricing.js",
+                  "module": "pricing",
+                  "function": "orderTotal",
+                  "lineno": 17,
+                  "colno": 51,
+                  "in_app": true,
+                  "pre_context": [
+                    "}",
+                    "",
+                    "export function loyaltyDiscount(customer) {",
+                    "  return LOYALTY_DISCOUNTS[customer.loyalty.tier] ?? 0;",
+                    "}",
+                    "",
+                    "export function orderTotal(order, customer) {"
+                  ],
+                  "context_line": "  const discounted = subtotal(order.items) * (1 - loyaltyDiscount(customer));",
+                  "post_context": [
+                    "  return roundCents(discounted * (1 + TAX_RATE));",
+                    "}"
+                  ],
+                  "vars": {
+                    "order": {
+                      "id": "o_1003",
+                      "customerId": "c_102"
+                    },
+                    "customer": {
+                      "id": "c_102",
+                      "name": "Sam Rivera"
+                    }
+                  }
+                },
+                {
+                  "filename": "app:///src/pricing.js",
+                  "module": "pricing",
+                  "function": "loyaltyDiscount",
+                  "lineno": 13,
+                  "colno": 45,
+                  "in_app": true,
+                  "pre_context": [
+                    "}",
+                    "",
+                    "export function subtotal(items) {",
+                    "  return items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);",
+                    "}",
+                    "",
+                    "export function loyaltyDiscount(customer) {"
+                  ],
+                  "context_line": "  return LOYALTY_DISCOUNTS[customer.loyalty.tier] ?? 0;",
+                  "post_context": [
+                    "}",
+                    "",
+                    "export function orderTotal(order, customer) {",
+                    "  const discounted = subtotal(order.items) * (1 - loyaltyDiscount(customer));",
+                    "  return roundCents(discounted * (1 + TAX_RATE));",
+                    "}"
+                  ],
+                  "vars": {
+                    "customer": {
+                      "id": "c_102",
+                      "name": "Sam Rivera"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "tags": [
+        [
+          "environment",
+          "production"
+        ],
+        [
+          "handled",
+          "yes"
+        ],
+        [
+          "level",
+          "error"
+        ],
+        [
+          "mechanism",
+          "generic"
+        ],
+        [
+          "release",
+          "19f49b54eeab9bc4a2a9eaa78c18815617f163b8"
+        ],
+        [
+          "runtime",
+          "node v24.14.1"
+        ],
+        [
+          "url",
+          "http://localhost:3000/orders/o_1003/total"
+        ]
+      ],
+      "metadata": {
+        "type": "TypeError",
+        "value": "Cannot read properties of undefined (reading 'tier')",
+        "filename": "app:///src/pricing.js",
+        "function": "loyaltyDiscount"
+      },
+      "sdk": {},
+      "issue_id": "6891357902",
+      "issue_url": "https://sentry.io/api/0/issues/6891357902/",
+      "url": "https://sentry.io/api/0/projects/example-org/orders-api/events/4fb12784202a488fb28191372e938e0b/",
+      "web_url": "https://example-org.sentry.io/issues/6891357902/events/4fb12784202a488fb28191372e938e0b/"
+    },
+    "triggered_rule": "orders-api error spike",
+    "issue_alert": {
+      "title": "orders-api error spike",
+      "settings": []
+    }
+  },
+  "installation": {
+    "uuid": "0b9f6e2c-4d1a-4c3e-9a57-3f2d8e1b6c40"
+  }
+}
