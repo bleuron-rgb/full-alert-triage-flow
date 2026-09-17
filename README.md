@@ -83,7 +83,7 @@ npm start              # terminal 1: the service, reporting to Sentry
 npm run traffic -- 20  # terminal 2: 120 requests; orders from non-members return 500
 ```
 
-The alert rule fires, the relay logs `Routine fired: {...session_url...}` (see `wrangler tail` or the Worker's logs in the Cloudflare dashboard), and the routine session appears at [claude.ai/code](https://claude.ai/code). A few minutes later there's a draft PR on this repo.
+The alert rule fires, the relay logs `Routine fired: {...session_url...}` (see `wrangler tail` or the Worker's logs in the Cloudflare dashboard), and the routine session appears at [claude.ai/code](https://claude.ai/code). A few minutes later there is a pull request: already merged if it passed the gate, or open and labelled `needs-human` if it did not.
 
 To test the relay and routine without waiting for Sentry:
 
@@ -123,7 +123,7 @@ guesses_made: none
 | Verdict present, confidence ≥ 0.85, no guesses | A low score can block a merge; a high one never earns it alone |
 | Fewer than 3 automatic merges in the last 24h | Stops a cascade where each fix causes the next alert |
 
-A refused gate removes the label, adds `needs-human`, comments with a link to the failed run, and leaves the PR open.
+A refused gate removes the label, adds `needs-human`, comments with a link to the failed run, and leaves the PR open. Opening and labelling fire the gate within a second of each other, so runs are serialized per pull request and only the last one comments.
 
 **Human.** Anything else: it opens a draft labelled `needs-human` and sends one push notification saying what it was unsure about. It also escalates, rather than guessing, when it cannot reproduce the error, when an existing test contradicts the fix, or when this Sentry issue was fixed automatically before and has come back — the signal that an earlier fix did not hold.
 
