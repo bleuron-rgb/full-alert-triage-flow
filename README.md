@@ -123,7 +123,7 @@ guesses_made: none
 | Verdict present, confidence ≥ 0.85, no guesses | A low score can block a merge; a high one never earns it alone |
 | Fewer than 3 automatic merges in the last 24h | Stops a cascade where each fix causes the next alert |
 
-A refused gate removes the label, adds `needs-human`, comments with a link to the failed run, and leaves the PR open.
+A refused gate removes the label, adds `needs-human`, comments with a link to the failed run, and leaves the PR open. It comments once, however many events re-run the gate on the same pull request.
 
 **Human.** Anything else: it opens a draft labelled `needs-human` and sends one push notification saying what it was unsure about. It also escalates, rather than guessing, when it cannot reproduce the error, when an existing test contradicts the fix, or when this Sentry issue was fixed automatically before and has come back — the signal that an earlier fix did not hold.
 
