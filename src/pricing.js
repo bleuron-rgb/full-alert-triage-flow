@@ -10,7 +10,7 @@ export function subtotal(items) {
 }
 
 export function loyaltyDiscount(customer) {
-  return LOYALTY_DISCOUNTS[customer.loyalty.tier] ?? 0;
+  return LOYALTY_DISCOUNTS[customer.loyalty?.tier] ?? 0;
 }
 
 export function orderTotal(order, customer) {
