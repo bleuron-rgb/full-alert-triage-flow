@@ -123,6 +123,8 @@ guesses_made: none
 
 A refused gate removes the label, adds `needs-human`, comments with a link to the failed run, and leaves the PR open.
 
+Both labels live in the repository's label list, and the gate reads and rewrites them, so renaming one means editing the workflow too.
+
 **Human.** Anything else: it opens a draft labelled `needs-human` and sends one push notification saying what it was unsure about. It also escalates, rather than guessing, when it cannot reproduce the error, when an existing test contradicts the fix, or when this Sentry issue was fixed automatically before and has come back — the signal that an earlier fix did not hold.
 
 A clean automatic fix sends no notification. The merged pull request is the record.
