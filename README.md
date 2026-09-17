@@ -3,13 +3,14 @@
 An end-to-end demo of alert triage with a [Claude Code routine](https://code.claude.com/docs/en/routines):
 
 ```
-orders-api ──errors──▶ Sentry ──issue alert webhook──▶ relay (Cloudflare Worker) ──POST /fire──▶ Claude Code routine ──▶ draft PR
+orders-api ──errors──▶ Sentry ──issue alert webhook──▶ relay (Cloudflare Worker) ──POST /fire──▶ Claude Code routine ──▶ PR ──▶ gate ──▶ merged, or handed to you
 ```
 
 1. `orders-api` (this repo) reports exceptions to Sentry, tagged with the deployed git commit as the release.
-2. A Sentry issue alert rule fires when an error crosses a threshold, and posts to the relay through a Sentry internal integration.
+2. A Sentry issue alert rule fires when the error first appears, or when a resolved issue regresses, and posts to the relay through a Sentry internal integration.
 3. The relay verifies the Sentry signature, formats the alert (rule, exception, stack trace with source lines, release, Sentry link) as text, and calls the routine's `/fire` endpoint. A relay is needed because Sentry webhooks can't send the bearer token and beta headers `/fire` requires.
-4. The routine clones this repo, reproduces the error in a test, correlates it with recent commits, and opens a draft PR with the fix and a link back to Sentry. Its prompt is in [routine/prompt.md](routine/prompt.md).
+4. The routine clones this repo, reproduces the error in a test, correlates it with recent commits, and opens a pull request with the fix and a link back to Sentry. Its prompt is in [routine/prompt.md](routine/prompt.md).
+5. Small, verified fixes merge without a human. Anything the routine is unsure about waits for one, and only then does it notify you. See [Automatic merge](#automatic-merge).
 
 The service ships with a real regression: the `Add loyalty tier discounts to order totals` commit assumes every customer has a `loyalty` record, so orders from customers who never joined the program fail with `TypeError: Cannot read properties of undefined (reading 'tier')`.
 
@@ -23,6 +24,7 @@ The service ships with a real regression: the `Add loyalty tier discounts to ord
 | `relay/` | Cloudflare Worker that turns Sentry issue-alert webhooks into routine fires. |
 | `relay/scripts/send-sample.js` | Sends a signed sample alert to the relay, to test the relay and routine without Sentry. |
 | `routine/prompt.md` | The routine's saved prompt. |
+| `.github/workflows/triage-auto-merge.yml` | The gate that decides whether a triage PR merges on its own. |
 
 ## Setup
 
@@ -64,9 +66,12 @@ wrangler deploy                           # prints https://sentry-alert-relay.<s
    - **Permissions**: Issue & Event → Read
 2. Save, then copy the integration's **Client Secret** and run `wrangler secret put SENTRY_CLIENT_SECRET` in `relay/`.
 3. Create an issue alert rule for the project:
-   - **When**: a new issue is created, or the issue has more than 10 events in 1 minute
+   - **When**: `A new issue is created`, and `A resolved issue regresses`
+   - **If**: no filters. A frequency filter combined with the new-issue trigger suppresses the alert, because the count is 1 at that moment
    - **Then**: send a notification via the internal integration
    - **Action interval**: 30 minutes, so one incident fires the routine once
+
+   "A new issue is created" fires once per error, ever. To run the demo again, resolve the issue in Sentry and send traffic again: the next event is a regression and fires the rule.
 
 Sentry's menu labels change over time; if yours differ, look for the internal-integration and issue-alert screens.
 
@@ -86,6 +91,43 @@ SENTRY_CLIENT_SECRET=... node relay/scripts/send-sample.js https://sentry-alert-
 ```
 
 In PowerShell, set the secret first with `$env:SENTRY_CLIENT_SECRET = '...'`.
+
+## Automatic merge
+
+The routine picks one of two paths and says which in the pull request.
+
+**Automatic.** It reproduced the failure in a new test, fixed the cause, and the change is small. It opens the PR ready for review, labels it `auto-triage`, and ends the body with a machine-readable verdict:
+
+```
+<triage-verdict>
+confidence: 0.86
+reproduced: true
+fix_targets: root-cause
+introducing_commit: 19f49b5
+behavior_changed_for_working_inputs: false
+guesses_made: none
+</triage-verdict>
+```
+
+[The gate](.github/workflows/triage-auto-merge.yml) then re-checks the claims against the real diff and merges only if all of these hold:
+
+| Gate | Why |
+| --- | --- |
+| Only `src/*.js` and `test/*.js` changed | Keeps automation out of CI, the relay, the prompt and dependencies |
+| At most 3 files and 20 changed lines | A large diff is a design decision, not a triage fix |
+| At least one test changed | A fix never lands without a regression test |
+| The PR's tests **fail** against the base commit | Catches a test written to pass against broken code, and fixes that hide a symptom |
+| The full suite passes with the fix | The ordinary check |
+| Verdict present, confidence ≥ 0.85, no guesses | A low score can block a merge; a high one never earns it alone |
+| Fewer than 3 automatic merges in the last 24h | Stops a cascade where each fix causes the next alert |
+
+A refused gate removes the label, adds `needs-human`, comments with a link to the failed run, and leaves the PR open.
+
+**Human.** Anything else: it opens a draft labelled `needs-human` and sends one push notification saying what it was unsure about. It also escalates, rather than guessing, when it cannot reproduce the error, when an existing test contradicts the fix, or when this Sentry issue was fixed automatically before and has come back — the signal that an earlier fix did not hold.
+
+A clean automatic fix sends no notification. The merged pull request is the record.
+
+`main` is protected: the gate must pass before anything merges, so a mistake in the prompt cannot merge on its own.
 
 ## Notes
 

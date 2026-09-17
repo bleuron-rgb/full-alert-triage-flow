@@ -1,0 +1,184 @@
+name: Triage auto-merge
+
+# The alert-triage routine opens pull requests from claude/fix-sentry-* branches
+# and labels one `auto-triage` when it believes the fix is small and verified.
+# This workflow is the reviewer for those: it re-checks the claims against the
+# actual diff and merges only when every gate holds. A PR without the label, or
+# one that fails a gate, is left open for a person.
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, labeled, edited]
+    branches: [main]
+
+# The repository default is read-only; this job needs to merge and label.
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      # Runs for every PR so the check reports a result. Human PRs pass straight
+      # through, which keeps branch protection from blocking a manual merge.
+      - name: Decide whether this PR is on the automatic path
+        id: scope
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: |
+          if [[ "$HEAD_REF" == claude/fix-sentry-* ]] && [[ ",$LABELS," == *",auto-triage,"* ]]; then
+            echo "automatic=true" >> "$GITHUB_OUTPUT"
+            echo "Automatic path: checking every gate before merging."
+          else
+            echo "automatic=false" >> "$GITHUB_OUTPUT"
+            echo "Not an auto-triage PR; leaving it for human review."
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check changed paths and size
+        if: steps.scope.outputs.automatic == 'true'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          files=$(git diff --name-only "$BASE...$HEAD")
+          echo "Changed files:"
+          echo "$files"
+          if [ -z "$files" ]; then
+            echo "::error::Empty diff."
+            exit 1
+          fi
+          unexpected=$(echo "$files" | grep -vE '^(src|test)/[^/]+\.js$' || true)
+          if [ -n "$unexpected" ]; then
+            echo "::error::Only src/*.js and test/*.js may change automatically. Unexpected:"
+            echo "$unexpected"
+            exit 1
+          fi
+          if ! echo "$files" | grep -qE '^test/'; then
+            echo "::error::No test changed; an automatic fix must ship a regression test."
+            exit 1
+          fi
+          count=$(echo "$files" | wc -l)
+          if [ "$count" -gt 3 ]; then
+            echo "::error::$count files changed; the automatic limit is 3."
+            exit 1
+          fi
+          lines=$(git diff --numstat "$BASE...$HEAD" | awk '{total += $1 + $2} END {print total + 0}')
+          echo "Changed lines: $lines"
+          if [ "$lines" -gt 20 ]; then
+            echo "::error::$lines changed lines; the automatic limit is 20."
+            exit 1
+          fi
+
+      - name: Check the triage verdict
+        if: steps.scope.outputs.automatic == 'true'
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          node --input-type=module -e '
+            const body = process.env.PR_BODY ?? "";
+            const block = body.match(/<triage-verdict>([\s\S]*?)<\/triage-verdict>/);
+            if (!block) {
+              console.log("::error::The PR body has no <triage-verdict> block.");
+              process.exit(1);
+            }
+            const fields = Object.fromEntries(
+              block[1].trim().split("\n").filter((line) => line.includes(":")).map((line) => {
+                const [key, ...rest] = line.split(":");
+                return [key.trim(), rest.join(":").trim().replace(/\s+#.*$/, "")];
+              }),
+            );
+            console.log("Verdict:", fields);
+            const required = {
+              reproduced: "true",
+              fix_targets: "root-cause",
+              behavior_changed_for_working_inputs: "false",
+              guesses_made: "none",
+            };
+            let ok = true;
+            for (const [key, want] of Object.entries(required)) {
+              if (fields[key] !== want) {
+                console.log(`::error::verdict ${key} is "${fields[key]}", expected "${want}".`);
+                ok = false;
+              }
+            }
+            const confidence = Number(fields.confidence);
+            if (!(confidence >= 0.85)) {
+              console.log(`::error::verdict confidence "${fields.confidence}" is below the 0.85 threshold.`);
+              ok = false;
+            }
+            process.exit(ok ? 0 : 1);
+          '
+
+      - uses: actions/setup-node@v4
+        if: steps.scope.outputs.automatic == 'true'
+        with:
+          node-version: 22
+          cache: npm
+
+      # The strongest gate: a fix that hides a symptom, or a test written to pass
+      # against the broken code, fails here because the new tests must fail
+      # against the base commit.
+      - name: Confirm the new test fails without the fix
+        if: steps.scope.outputs.automatic == 'true'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git checkout -f "$BASE"
+          git checkout "$HEAD" -- test/
+          npm ci
+          if npm test; then
+            echo "::error::The PR's tests pass without the fix, so they do not reproduce the reported failure."
+            exit 1
+          fi
+          echo "Tests fail without the fix, as expected."
+
+      - name: Run the full suite with the fix
+        if: steps.scope.outputs.automatic == 'true'
+        env:
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git checkout -f "$HEAD"
+          npm ci
+          npm test
+
+      # A fix that causes a new error produces a new Sentry issue, so matching on
+      # issue id cannot catch a cascade. Counting recent merges can.
+      - name: Check the 24-hour automatic merge cap
+        if: steps.scope.outputs.automatic == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          since=$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)
+          recent=$(gh pr list --state merged --label auto-triage --limit 50 \
+            --json mergedAt --jq "[.[] | select(.mergedAt > \"$since\")] | length")
+          echo "auto-triage pull requests merged since $since: $recent"
+          if [ "$recent" -ge 3 ]; then
+            echo "::error::$recent automatic merges in the last 24 hours. Pausing automation so a person can look."
+            exit 1
+          fi
+
+      # Turns on GitHub's auto-merge rather than merging directly, because this
+      # job is itself the required check and cannot merge while still running.
+      - name: Enable auto-merge
+        if: steps.scope.outputs.automatic == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh pr merge "${{ github.event.pull_request.number }}" --squash --delete-branch --auto
+
+      - name: Hand the pull request to a person
+        if: failure() && steps.scope.outputs.automatic == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh pr edit "${{ github.event.pull_request.number }}" --remove-label auto-triage --add-label needs-human
+          gh pr comment "${{ github.event.pull_request.number }}" \
+            --body "The automatic merge gate refused this pull request, so it stays open for review. Failed run: $RUN_URL"
