@@ -11,6 +11,13 @@ on:
     types: [opened, reopened, synchronize, labeled, edited]
     branches: [main]
 
+# Opening and labelling a pull request fire this workflow within a second of each
+# other. Without a concurrency group the two runs execute in parallel, both check
+# for an existing refusal comment before either has posted one, and both comment.
+concurrency:
+  group: ${{ github.workflow }}-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 # The repository default is read-only; this job needs to merge and label.
 permissions:
   contents: write
