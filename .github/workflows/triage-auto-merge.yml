@@ -186,6 +186,14 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          gh pr edit "${{ github.event.pull_request.number }}" --remove-label auto-triage --add-label needs-human
-          gh pr comment "${{ github.event.pull_request.number }}" \
-            --body "The automatic merge gate refused this pull request, so it stays open for review. Failed run: $RUN_URL"
+          PR="${{ github.event.pull_request.number }}"
+          gh pr edit "$PR" --remove-label auto-triage --add-label needs-human
+          # Opening, labelling and pushing all fire this workflow, so comment only once.
+          existing=$(gh pr view "$PR" --json comments \
+            --jq '[.comments[] | select(.body | startswith("The automatic merge gate refused"))] | length')
+          if [ "$existing" -eq 0 ]; then
+            gh pr comment "$PR" \
+              --body "The automatic merge gate refused this pull request, so it stays open for review. Failed run: $RUN_URL"
+          else
+            echo "A refusal comment is already on this pull request; not adding another."
+          fi
