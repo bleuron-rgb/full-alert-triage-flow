@@ -48,6 +48,12 @@ before(async () => {
 
 after(() => service?.kill());
 
+test('the health check answers', async () => {
+  const res = await fetch(`${BASE_URL}/healthz`);
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { status: 'ok' });
+});
+
 test('the service answers and prices a known-good order', async () => {
   const res = await fetch(`${BASE_URL}/orders/${KNOWN_GOOD_ORDER}/total`);
   assert.equal(res.status, 200);

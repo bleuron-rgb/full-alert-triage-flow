@@ -26,6 +26,8 @@ The service ships with a real regression: the `Add loyalty tier discounts to ord
 | `relay/scripts/send-sample.js` | Sends a signed sample alert to the relay, to test the relay and routine without Sentry. |
 | `routine/prompt.md` | The routine's saved prompt. |
 | `.github/workflows/triage-auto-merge.yml` | The gate that decides whether a triage PR merges on its own. |
+| `Dockerfile` | The image staging and production run: the same Node process as `npm start`. |
+| `fly.staging.toml` | The staging app on Fly, deployed by the gate and torn down to zero when idle. |
 
 ## Setup
 
@@ -68,13 +70,27 @@ wrangler deploy                           # prints https://sentry-alert-relay.<s
 2. Save, then copy the integration's **Client Secret** and run `wrangler secret put SENTRY_CLIENT_SECRET` in `relay/`.
 3. Create an issue alert rule for the project:
    - **When**: `A new issue is created`, and `A resolved issue regresses`
-   - **If**: no filters. A frequency filter combined with the new-issue trigger suppresses the alert, because the count is 1 at that moment
+   - **If**: `event.environment` equals `production`. Staging reports to the same Sentry project, so without this filter a staging error fires the rule and triggers a triage run caused by your own merge gate. Do not add a frequency filter: combined with the new-issue trigger it suppresses the alert, because the count is 1 at that moment
    - **Then**: send a notification via the internal integration
    - **Action interval**: 30 minutes, so one incident fires the routine once
 
    "A new issue is created" fires once per error, ever. To run the demo again, resolve the issue in Sentry and send traffic again: the next event is a regression and fires the rule.
 
 Sentry's menu labels change over time; if yours differ, look for the internal-integration and issue-alert screens.
+
+### 5. Staging on Fly
+
+The gate deploys each automatic pull request here and runs the smoke tests against it before merging. Staging runs the same image as production, so `npm start`, the Dockerfile and the deployed app are the same process.
+
+```sh
+fly apps create orders-api-staging
+fly secrets set SENTRY_DSN=... --app orders-api-staging      # same project, environment=staging
+fly tokens create deploy -a orders-api-staging -x 999999h    # paste as the FLY_API_TOKEN repo secret
+```
+
+Add the token at **Settings > Secrets and variables > Actions** in this repository. Without it, an `auto-triage` pull request fails the gate and waits for you rather than merging on an unverified fix.
+
+The machine stops when idle (`min_machines_running = 0`), so between runs you pay only for rootfs storage; the first request after an idle period wakes it, which the smoke tests allow for.
 
 ## Run it
 
@@ -120,6 +136,7 @@ guesses_made: none
 | The PR's tests **fail** against the base commit | Catches a test written to pass against broken code, and fixes that hide a symptom |
 | The full suite passes with the fix | The ordinary check |
 | The service boots and smoke tests pass | Unit tests can pass while the running service is broken |
+| The PR deploys to staging and passes smoke tests there | The fix is exercised on a deployed instance, not only in a test runner |
 | Verdict present, confidence ≥ 0.85, no guesses | A low score can block a merge; a high one never earns it alone |
 | Fewer than 3 automatic merges in the last 24h | Stops a cascade where each fix causes the next alert |
 

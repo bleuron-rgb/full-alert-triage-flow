@@ -9,6 +9,8 @@ function sendJson(res, status, body) {
 }
 
 function routeRequest(req, res) {
+  if (req.method === 'GET' && req.url === '/healthz') return sendJson(res, 200, { status: 'ok' });
+
   const match = req.method === 'GET' && ORDER_TOTAL_ROUTE.exec(req.url);
   if (!match) return sendJson(res, 404, { error: 'not_found' });
 

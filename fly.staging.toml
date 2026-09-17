@@ -1,0 +1,25 @@
+# Staging runs the production image on a machine that stops when idle, so it costs
+# roughly nothing between runs. The merge gate deploys a pull request here and then
+# runs `npm run smoke` against the URL before merging.
+app = "orders-api-staging"
+primary_region = "yyz"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  SENTRY_ENVIRONMENT = "staging"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[http_service.checks]]
+  grace_period = "10s"
+  interval = "30s"
+  method = "GET"
+  path = "/healthz"
+  timeout = "5s"

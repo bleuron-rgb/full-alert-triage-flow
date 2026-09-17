@@ -187,7 +187,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh pr merge "${{ github.event.pull_request.number }}" --squash --delete-branch --auto
 
-      - name: Hand the pull request to a person
+      - name: Hand the pull request back to a person
         if: failure() && steps.scope.outputs.automatic == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -204,3 +204,71 @@ jobs:
           else
             echo "A refusal comment is already on this pull request; not adding another."
           fi
+
+  # Deploys the pull request to the staging app and exercises it there. Kept as a
+  # separate job with its own concurrency group: two pull requests share one
+  # staging app, so deploys must queue rather than overwrite each other. It does
+  # not depend on `gate`, so this check always reports a result instead of sitting
+  # skipped and blocking the merge.
+  staging:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: fly-staging-deploy
+      cancel-in-progress: false
+    steps:
+      - name: Decide whether this PR is on the automatic path
+        id: scope
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: |
+          if [[ "$HEAD_REF" == claude/fix-sentry-* ]] && [[ ",$LABELS," == *",auto-triage,"* ]]; then
+            echo "automatic=true" >> "$GITHUB_OUTPUT"
+            echo "Automatic path: deploying this pull request to staging."
+          else
+            echo "automatic=false" >> "$GITHUB_OUTPUT"
+            echo "Not an auto-triage PR; staging is left alone."
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.scope.outputs.automatic == 'true'
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Check the deploy token is present
+        if: steps.scope.outputs.automatic == 'true'
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          if [ -z "$FLY_API_TOKEN" ]; then
+            echo "::error::FLY_API_TOKEN is not set, so the fix cannot be verified on staging. Refusing rather than merging it unverified."
+            exit 1
+          fi
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+        if: steps.scope.outputs.automatic == 'true'
+
+      # --wait-timeout holds until the machine passes the /healthz check, so a
+      # deploy that starts but never becomes healthy fails here rather than
+      # showing up as a confusing smoke-test timeout.
+      - name: Deploy the pull request to staging
+        if: steps.scope.outputs.automatic == 'true'
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          flyctl deploy --config fly.staging.toml --build-arg "SENTRY_RELEASE=$HEAD" --wait-timeout 5m
+
+      - uses: actions/setup-node@v4
+        if: steps.scope.outputs.automatic == 'true'
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Smoke test the deployed service
+        if: steps.scope.outputs.automatic == 'true'
+        env:
+          SMOKE_BASE_URL: https://orders-api-staging.fly.dev
+        run: |
+          npm ci
+          npm run smoke
