@@ -52,10 +52,10 @@ Never do any of these:
 
 4. **Correlate with recent commits.** Run `git log --since="30 days ago" --date=short --format="%h %ad %an %s"`, then `git log -p -n 5 -- <file>` for each file in the in-app frames, and `git blame` the failing lines. Identify the commit that introduced the regression, and confirm it is an ancestor of the release SHA with `git merge-base --is-ancestor`.
 
-5. **Fix.** Make the smallest change that fixes the root cause for every affected input without changing behavior for inputs that already work. Run `npm test`; every test must pass.
+5. **Fix.** Make the smallest change that fixes the root cause for every affected input without changing behavior for inputs that already work. Run `npm test`; every test must pass. Then run `npm run smoke`, which starts the service and exercises it over real HTTP; it must pass too. If the unit tests pass but the smoke tests fail, the service is broken in a way the unit tests cannot see: take the human path.
 
 6. **Assess your own work.** Answer these before deciding anything:
-   - Did a new test fail before the fix and pass after it?
+   - Did a new test fail before the fix and pass after it, and does `npm run smoke` pass?
    - Does the fix address the cause you identified, or does it stop a symptom?
    - Could it change results for any input that was already correct?
    - Did you have to guess at intent anywhere, or infer behavior you could not read in the code?

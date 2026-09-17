@@ -21,6 +21,7 @@ The service ships with a real regression: the `Add loyalty tier discounts to ord
 | `src/` | The orders-api service. `GET /orders/:id/total` returns an order total. |
 | `src/instrument.js` | Sentry SDK setup, loaded with `node --import` before the server. |
 | `scripts/traffic.js` | Sends requests for every order so errors reach Sentry. |
+| `smoke/service.smoke.js` | Smoke tests: start the service and exercise it over HTTP (`npm run smoke`). |
 | `relay/` | Cloudflare Worker that turns Sentry issue-alert webhooks into routine fires. |
 | `relay/scripts/send-sample.js` | Sends a signed sample alert to the relay, to test the relay and routine without Sentry. |
 | `routine/prompt.md` | The routine's saved prompt. |
@@ -118,6 +119,7 @@ guesses_made: none
 | At least one test changed | A fix never lands without a regression test |
 | The PR's tests **fail** against the base commit | Catches a test written to pass against broken code, and fixes that hide a symptom |
 | The full suite passes with the fix | The ordinary check |
+| The service boots and smoke tests pass | Unit tests can pass while the running service is broken |
 | Verdict present, confidence ≥ 0.85, no guesses | A low score can block a merge; a high one never earns it alone |
 | Fewer than 3 automatic merges in the last 24h | Stops a cascade where each fix causes the next alert |
 

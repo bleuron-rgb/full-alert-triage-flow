@@ -149,6 +149,13 @@ jobs:
           npm ci
           npm test
 
+      # Ephemeral staging: start the service the way production starts it and
+      # exercise it over real HTTP, so a fix that satisfies the unit tests but
+      # breaks the running service is caught before it reaches main.
+      - name: Boot the service and run smoke tests
+        if: steps.scope.outputs.automatic == 'true'
+        run: npm run smoke
+
       # A fix that causes a new error produces a new Sentry issue, so matching on
       # issue id cannot catch a cascade. Counting recent merges can.
       - name: Check the 24-hour automatic merge cap

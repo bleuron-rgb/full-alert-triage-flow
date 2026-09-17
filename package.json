@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node --env-file-if-exists=.env --import ./src/instrument.js src/server.js",
     "traffic": "node scripts/traffic.js",
-    "test": "node --test"
+    "test": "node --test",
+    "smoke": "node --test smoke/service.smoke.js"
   },
   "engines": {
     "node": ">=22"
