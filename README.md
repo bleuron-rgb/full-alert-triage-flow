@@ -58,10 +58,10 @@ Production holds the webhook and keeps one machine running, because Sentry times
 
 ```sh
 flyctl auth login
-flyctl apps create orders-api
+flyctl apps create orders-api-prod
 flyctl apps create orders-api-staging
 
-flyctl secrets set --app orders-api SENTRY_DSN=... ROUTINE_FIRE_URL=... ROUTINE_FIRE_TOKEN=...
+flyctl secrets set --app orders-api-prod SENTRY_DSN=... ROUTINE_FIRE_URL=... ROUTINE_FIRE_TOKEN=...
 flyctl secrets set --app orders-api-staging SENTRY_DSN=...
 
 flyctl deploy --config fly.toml
@@ -69,6 +69,8 @@ flyctl deploy --config fly.staging.toml
 ```
 
 `ROUTINE_FIRE_URL` and `ROUTINE_FIRE_TOKEN` are the URL and token from step 1.3. `SENTRY_CLIENT_SECRET` comes from step 4, once the integration exists.
+
+Fly creates two machines per app for zero-downtime deploys. One is enough here, and halves the bill: `flyctl scale count 1 --app orders-api-prod`, likewise for staging.
 
 The merge gate redeploys staging on every automatic pull request, so it needs a deploy token:
 
@@ -81,12 +83,12 @@ Add that as the `FLY_API_TOKEN` repository secret under **Settings > Secrets and
 ### 4. Sentry integration and alert rule
 
 1. In Sentry, go to **Settings > Developer Settings > Custom Integrations > Create New Integration > Internal Integration**.
-   - **Webhook URL**: `https://orders-api.fly.dev/internal/sentry-alert`
+   - **Webhook URL**: `https://orders-api-prod.fly.dev/internal/sentry-alert`
    - **Alert Rule Action**: on
    - **Permissions**: Issue & Event → Read & Write (write is needed to resolve an issue when its fix merges)
    - **Webhooks**: leave every box unchecked. Alert deliveries come from the Alert Rule Action, not from these
 2. Save, then copy two values from the integration's page:
-   - the **Client Secret** → `flyctl secrets set SENTRY_CLIENT_SECRET=... --app orders-api`, so the webhook can verify signatures
+   - the **Client Secret** → `flyctl secrets set SENTRY_CLIENT_SECRET=... --app orders-api-prod`, so the webhook can verify signatures
    - the **auth token** → add it as the `SENTRY_AUTH_TOKEN` repo secret, so a merged fix can resolve its issue
 3. Create an issue alert rule for the project:
    - **When**: `A new issue is created`, and `A resolved issue regresses`
@@ -101,7 +103,7 @@ Sentry's menu labels change over time; if yours differ, look for the internal-in
 Against production:
 
 ```sh
-BASE_URL=https://orders-api.fly.dev npm run traffic -- 1
+BASE_URL=https://orders-api-prod.fly.dev npm run traffic -- 1
 ```
 
 One in three requests returns 500, the alert rule fires, and the routine session appears at [claude.ai/code](https://claude.ai/code). A few minutes later there is a pull request: already merged if it passed the gate, or open and labelled `needs-human` if it did not.
@@ -111,7 +113,7 @@ Locally, `npm start` in one terminal and `npm run traffic -- 1` in another does 
 To exercise the webhook and the routine without waiting for Sentry:
 
 ```sh
-SENTRY_CLIENT_SECRET=... node scripts/send-sample.js https://orders-api.fly.dev
+SENTRY_CLIENT_SECRET=... node scripts/send-sample.js https://orders-api-prod.fly.dev
 ```
 
 In PowerShell, set the secret first with `$env:SENTRY_CLIENT_SECRET = '...'`.

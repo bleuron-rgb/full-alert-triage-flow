@@ -1,6 +1,6 @@
 # Production. Same image as staging; the difference is that this app holds the
 # webhook and routine secrets, and keeps a machine running.
-app = "orders-api"
+app = "orders-api-prod"
 primary_region = "yyz"
 
 [build]
