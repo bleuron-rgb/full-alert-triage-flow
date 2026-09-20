@@ -1,0 +1,56 @@
+name: Resolve the Sentry issue
+
+# When a triage fix merges, mark its Sentry issue resolved. Resolving is what makes
+# a later event count as a regression: it fires the alert rule again, and the
+# routine's repeat check then finds a merged fix for the same issue and escalates
+# instead of attempting a second automatic fix.
+#
+# Separate from the merge gate on purpose: the gate only enables auto-merge, so the
+# merge itself lands later, and this must not add a required check to every PR.
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  resolve:
+    if: github.event.pull_request.merged == true && startsWith(github.head_ref, 'claude/fix-sentry-')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve the issue in Sentry
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG || 'websitepronto' }}
+          HEAD_REF: ${{ github.head_ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          issue="${HEAD_REF#claude/fix-sentry-}"
+          case "$issue" in
+            ''|*[!0-9]*)
+              echo "::error::Branch $HEAD_REF does not end in a Sentry issue id."
+              exit 1
+              ;;
+          esac
+
+          if [ -z "$SENTRY_AUTH_TOKEN" ]; then
+            echo "::error::SENTRY_AUTH_TOKEN is not set, so issue $issue stays unresolved and a later event will not count as a regression."
+            exit 1
+          fi
+
+          code=$(curl -sS -o /tmp/sentry.json -w '%{http_code}' \
+            -X PUT "https://sentry.io/api/0/organizations/$SENTRY_ORG/issues/$issue/" \
+            -H "Authorization: Bearer $SENTRY_AUTH_TOKEN" \
+            -H 'Content-Type: application/json' \
+            -d '{"status":"resolved"}')
+          cat /tmp/sentry.json
+
+          if [ "$code" != "200" ]; then
+            echo "::error::Sentry returned HTTP $code when resolving issue $issue."
+            gh pr comment "$PR_NUMBER" --body "This merged, but Sentry issue $issue could not be resolved automatically (HTTP $code). Resolve it by hand, or a recurrence will look like a brand new issue rather than a regression."
+            exit 1
+          fi
+
+          echo "Sentry issue $issue resolved."

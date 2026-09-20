@@ -66,8 +66,10 @@ wrangler deploy                           # prints https://sentry-alert-relay.<s
 1. In Sentry, go to **Settings > Developer Settings > Custom Integrations > Create New Integration > Internal Integration**.
    - **Webhook URL**: the Worker URL from step 3
    - **Alert Rule Action**: on
-   - **Permissions**: Issue & Event → Read
-2. Save, then copy the integration's **Client Secret** and run `wrangler secret put SENTRY_CLIENT_SECRET` in `relay/`.
+   - **Permissions**: Issue & Event → Read & Write (write is needed to resolve an issue when its fix merges)
+2. Save, then copy two values from the integration's page:
+   - the **Client Secret** → run `wrangler secret put SENTRY_CLIENT_SECRET` in `relay/`, so the relay can verify webhook signatures
+   - the **auth token** → add it as the `SENTRY_AUTH_TOKEN` repo secret under **Settings > Secrets and variables > Actions**, so a merged fix can resolve its issue
 3. Create an issue alert rule for the project:
    - **When**: `A new issue is created`, and `A resolved issue regresses`
    - **If**: `event.environment` equals `production`. Staging reports to the same Sentry project, so without this filter a staging error fires the rule and triggers a triage run caused by your own merge gate. Do not add a frequency filter: combined with the new-issue trigger it suppresses the alert, because the count is 1 at that moment
@@ -145,6 +147,8 @@ A refused gate removes the label, adds `needs-human`, comments with a link to th
 **Human.** Anything else: it opens a draft labelled `needs-human` and sends one push notification saying what it was unsure about. It also escalates, rather than guessing, when it cannot reproduce the error, when an existing test contradicts the fix, or when this Sentry issue was fixed automatically before and has come back — the signal that an earlier fix did not hold.
 
 A clean automatic fix sends no notification. The merged pull request is the record.
+
+**When the fix merges**, [a second workflow](.github/workflows/sentry-resolve.yml) marks the Sentry issue resolved, taking the issue ID from the `claude/fix-sentry-<id>` branch name. That is what closes the loop: a resolved issue that receives another event is a *regression*, which fires the alert rule again, and the routine's repeat check then finds the earlier merged fix and escalates to you instead of trying a second automatic one. If the resolve fails, the workflow comments on the merged pull request and goes red, because an unresolved issue would make a recurrence look like a brand new problem.
 
 `main` is protected: the gate must pass before anything merges, so a mistake in the prompt cannot merge on its own.
 
