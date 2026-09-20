@@ -1,14 +1,14 @@
-// Sends the sample Sentry issue-alert payload to a deployed relay, signed the way
-// Sentry signs webhooks, to exercise the relay and routine without Sentry.
-// Usage: SENTRY_CLIENT_SECRET=... node relay/scripts/send-sample.js <relay-url>
+// Sends the sample Sentry issue-alert payload to the running service, signed the way
+// Sentry signs webhooks, to exercise the webhook and the routine without Sentry.
+// Usage: SENTRY_CLIENT_SECRET=... node scripts/send-sample.js https://orders-api.fly.dev
 import { execSync } from 'node:child_process';
 import { createHmac } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
-const [relayUrl] = process.argv.slice(2);
+const target = (process.argv[2] ?? 'http://localhost:3000').replace(/\/$/, '');
 const secret = process.env.SENTRY_CLIENT_SECRET;
-if (!relayUrl || !secret) {
-  console.error('Usage: SENTRY_CLIENT_SECRET=... node relay/scripts/send-sample.js <relay-url>');
+if (!secret) {
+  console.error('Usage: SENTRY_CLIENT_SECRET=... node scripts/send-sample.js [base-url]');
   process.exit(1);
 }
 
@@ -21,7 +21,7 @@ try {
 }
 
 const body = JSON.stringify(payload);
-const res = await fetch(relayUrl, {
+const res = await fetch(`${target}/internal/sentry-alert`, {
   method: 'POST',
   headers: {
     'content-type': 'application/json',
@@ -32,5 +32,6 @@ const res = await fetch(relayUrl, {
   body,
 });
 
-console.log(`Relay responded HTTP ${res.status}`);
-if (res.status === 202) console.log('The routine is being fired. Follow it with `wrangler tail` in relay/ or at https://claude.ai/code');
+console.log(`${target} responded HTTP ${res.status}`);
+if (res.status === 202) console.log('The routine is being fired; watch it at https://claude.ai/code');
+if (res.status === 404) console.log('The endpoint is closed: SENTRY_CLIENT_SECRET is not set on that instance.');

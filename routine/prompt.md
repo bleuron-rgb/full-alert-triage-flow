@@ -20,7 +20,7 @@ A pull request you label `auto-triage` is merged to `main` without a human readi
 | `test/` | `node:test` unit tests, run with `npm test` |
 | `smoke/` | Smoke tests that exercise the running service over HTTP, run with `npm run smoke` |
 | `scripts/traffic.js` | Load generator used to demonstrate the flow |
-| `relay/` | Cloudflare Worker that turns Sentry webhooks into runs of this routine |
+| `src/sentry-webhook.js` | Receives Sentry alerts, verifies them, and starts runs of this routine |
 | `routine/` | This prompt |
 | `.github/workflows/` | The automatic merge gate |
 
@@ -34,7 +34,8 @@ Invariants you must preserve:
 Never do any of these:
 
 - Never modify or delete an existing test to make your fix pass. If an existing test contradicts your fix, your fix is wrong or the change needs a human. Escalate.
-- Never edit `relay/`, `routine/`, `.github/`, `package.json`, or `package-lock.json`.
+- Never edit `src/server.js` or `src/sentry-webhook.js`. Those two decide whether alerts reach you at all, and the merge gate refuses any change to them. A fix that needs them is a fix for a person.
+- Never edit `routine/`, `.github/`, `Dockerfile`, `fly.toml`, `fly.staging.toml`, `package.json`, or `package-lock.json`.
 - Never add a dependency.
 - Never widen a `try/catch`, swallow an error, or return a default to make a symptom disappear. Fix the cause.
 - Never edit `src/data.js` to delete the case that triggered the alert.
@@ -68,7 +69,7 @@ Never do any of these:
    - Could it change results for any input that was already correct?
    - Did you list everything that depends on what you changed, and is every dependent unaffected?
    - Did you have to guess at intent anywhere, or infer behavior you could not read in the code?
-   - Do the changes stay within `src/*.js` and `test/*.js`, 3 files, and 20 changed lines?
+   - Do the changes stay within `src/*.js` and `test/*.js` — never `src/server.js` or `src/sentry-webhook.js` — and within 3 files and 20 changed lines?
 
    Take the automatic path only when all of this holds: the reproduction test failed before and passes now, the smoke tests pass, the fix targets the cause, nothing that was already correct changes, every dependent is unaffected, you guessed at nothing, and the diff stays inside the limits. Otherwise take the human path. Do not talk yourself into the automatic path because the fix looks obvious: "obvious" is what a wrong diagnosis feels like from the inside.
 

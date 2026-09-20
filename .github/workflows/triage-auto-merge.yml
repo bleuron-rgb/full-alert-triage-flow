@@ -67,6 +67,14 @@ jobs:
             echo "$unexpected"
             exit 1
           fi
+          # These two decide whether Sentry alerts reach the routine at all, so an
+          # automatic fix may not edit its own trigger.
+          trigger=$(echo "$files" | grep -E '^src/(server|sentry-webhook)\.js$' || true)
+          if [ -n "$trigger" ]; then
+            echo "::error::These files control the alert trigger and are out of bounds for an automatic fix:"
+            echo "$trigger"
+            exit 1
+          fi
           if ! echo "$files" | grep -qE '^test/'; then
             echo "::error::No test changed; an automatic fix must ship a regression test."
             exit 1

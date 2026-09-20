@@ -1,0 +1,26 @@
+# Production. Same image as staging; the difference is that this app holds the
+# webhook and routine secrets, and keeps a machine running.
+app = "orders-api"
+primary_region = "yyz"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  SENTRY_ENVIRONMENT = "production"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  # Sentry treats a webhook response slower than one second as a timeout, and this
+  # app receives those webhooks, so one machine stays up instead of cold starting.
+  min_machines_running = 1
+
+[[http_service.checks]]
+  grace_period = "10s"
+  interval = "30s"
+  method = "GET"
+  path = "/healthz"
+  timeout = "5s"

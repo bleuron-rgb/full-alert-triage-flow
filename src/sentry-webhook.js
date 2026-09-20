@@ -84,3 +84,87 @@ export function formatAlert(data) {
   ];
   return truncate(lines.join('\n'), MAX_TEXT_CHARS);
 }
+
+// The endpoint Sentry posts issue alerts to. It verifies the signature, answers
+// inside Sentry's one-second budget, and fires the routine afterwards.
+//
+// Errors raised in here are logged and never sent to Sentry: an event raised while
+// handling an alert could fire the alert rule, which would post here again.
+export const SENTRY_WEBHOOK_PATH = '/internal/sentry-alert';
+
+const FIRE_HEADERS = {
+  'anthropic-beta': 'experimental-cc-routine-2026-04-01',
+  'anthropic-version': '2023-06-01',
+  'content-type': 'application/json',
+};
+
+export function webhookConfigFromEnv(env = process.env) {
+  return {
+    clientSecret: env.SENTRY_CLIENT_SECRET,
+    fireUrl: env.ROUTINE_FIRE_URL,
+    fireToken: env.ROUTINE_FIRE_TOKEN,
+  };
+}
+
+async function fireRoutine({ fireUrl, fireToken }, text) {
+  const res = await fetch(fireUrl, {
+    method: 'POST',
+    headers: { ...FIRE_HEADERS, authorization: `Bearer ${fireToken}` },
+    body: JSON.stringify({ text }),
+  });
+  const body = await res.text();
+  if (res.ok) console.log(`Routine fired: ${body}`);
+  else console.error(`Routine fire failed with HTTP ${res.status}: ${body}`);
+}
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.setEncoding('utf8');
+    req.on('data', (chunk) => { body += chunk; });
+    req.on('end', () => resolve(body));
+    req.on('error', reject);
+  });
+}
+
+function send(res, status, body = '') {
+  res.writeHead(status, { 'content-type': 'application/json' });
+  res.end(body);
+}
+
+// Returns true when it took responsibility for the request.
+export async function handleSentryWebhook(req, res, config = webhookConfigFromEnv(), fire = fireRoutine) {
+  if ((req.url ?? '').split('?')[0] !== SENTRY_WEBHOOK_PATH) return false;
+
+  // Without a secret the endpoint cannot tell a real alert from anything else, so
+  // it does not exist. This is what keeps staging from firing the routine.
+  if (!config.clientSecret) {
+    send(res, 404, JSON.stringify({ error: 'not_found' }));
+    return true;
+  }
+
+  if (req.method !== 'POST') {
+    send(res, 405, JSON.stringify({ error: 'method_not_allowed' }));
+    return true;
+  }
+
+  const rawBody = await readBody(req);
+  const signature = req.headers['sentry-hook-signature'];
+  if (!(await verifySentrySignature(rawBody, signature, config.clientSecret))) {
+    send(res, 401, JSON.stringify({ error: 'invalid_signature' }));
+    return true;
+  }
+
+  // Only issue-alert actions carry the event and its stack trace. Other resources,
+  // such as the installation webhook, are acknowledged and ignored.
+  if (req.headers['sentry-hook-resource'] !== 'event_alert') {
+    send(res, 204);
+    return true;
+  }
+
+  const { data } = JSON.parse(rawBody);
+  // Answer first: Sentry treats a response slower than one second as a timeout.
+  send(res, 202);
+  fire(config, formatAlert(data)).catch((err) => console.error(`Routine fire failed: ${err.stack}`));
+  return true;
+}
